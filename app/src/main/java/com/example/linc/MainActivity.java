@@ -60,15 +60,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     private CallbackManager callbackManager; // callbackmanager
     private LoginCallback mLoginCallback; // LoginCallback 함수 만들어 둔거 호출
     private AccessToken accessToken;
+    private FirebaseAuth.AuthStateListener firebaseAuthListener;
 
-    //이메일을 통한 회원가입 및 로그인 추가부분
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^[a-zA-Z0-9!@.#$%^&*?_~]{4,16}$");
-
+    private Button buttonSignUp;
+    private Button buttonLogIn;
     private EditText editTextEmail;
     private EditText editTextPassword;
 
-    private String email = "";
-    private String password = "";
 
 
     @Override
@@ -118,85 +116,74 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
             }
         });
 
-        editTextEmail = findViewById(R.id.et_email);
-        editTextPassword = findViewById(R.id.et_password);
-    }
+        editTextEmail = (EditText) findViewById(R.id.et_email);
+        editTextPassword = (EditText) findViewById(R.id.et_password);
 
-    public void signUp(View view){
-        email = editTextEmail.getText().toString();
-        password = editTextPassword.getText().toString();
-
-        if(isValidEmail() && isValidPasswd()) {
-            createUser(email,password);
-        }
-    }
-
-    public void signIn(View view){
-        email = editTextEmail.getText().toString();
-        password = editTextPassword.getText().toString();
-
-        if(isValidEmail() && isValidPasswd()) {
-            loginUser(email,password);
-
-        }
-    }
-
-    // 아이디 유효성 검사
-    private boolean isValidEmail() {
-        if (email.isEmpty()) { // 이메일 공백
-            return false;
-        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()){ //이메일 형식 불일치
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    //비밀번호 유효성 검사
-    private boolean isValidPasswd() {
-        if(password.isEmpty()) {  // 비밀번호 공백
-            return false;
-        } else if (!PASSWORD_PATTERN.matcher(password).matches()){  // 비밀번호 형식 불일치
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    // 회원 가입
-    private void createUser(String email, String password) {
-        auth.createUserWithEmailAndPassword(email,password).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+        buttonSignUp = (Button) findViewById(R.id.btn_signup);
+        buttonSignUp.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-                if (task.isSuccessful()) {
-                    //회원 가입 성공
-                    Toast.makeText(MainActivity.this,R.string.success_signup,Toast.LENGTH_SHORT).show();
-                }else {
-                    //회원 가입 실패
-                    Toast.makeText(MainActivity.this,R.string.failed_signup,Toast.LENGTH_SHORT).show();
-                }
+            public void onClick(View view) {
+                Intent intent = new Intent(MainActivity.this, Signup.class);
+                startActivity(intent);
             }
         });
-    }
 
-    // 로그인
-    private void loginUser(String email, String password)
-    {
-        auth.signInWithEmailAndPassword(email, password).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+        buttonLogIn = (Button) findViewById(R.id.btn_signin);
+        buttonLogIn.setOnClickListener(new View.OnClickListener(){
+           @Override
+            public void onClick(View view) {
+               if (!editTextEmail.getText().toString().equals("") && !editTextPassword.getText().toString().equals("")) {
+                   loginUser(editTextEmail.getText().toString(),editTextPassword.getText().toString());
+               } else {
+                   Toast.makeText(MainActivity.this,"계정과 비밀번호를 입력하세요.", Toast.LENGTH_SHORT).show();
+               }
+           }
+        });
+
+        firebaseAuthListener = new FirebaseAuth.AuthStateListener() {
             @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-                if (task.isSuccessful()) { //로그인 성공
-                    Toast.makeText(MainActivity.this, R.string.success_login, Toast.LENGTH_SHORT).show();
-                    Intent intent = new Intent(getApplicationContext(), Result.class);
+            public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
+                FirebaseUser user = firebaseAuth.getCurrentUser();
+                if (user != null) {
+                    Intent intent = new Intent(MainActivity.this,Result.class);
                     startActivity(intent);
-                } else { //로그인 실패
-                    Toast.makeText(MainActivity.this, R.string.failed_login,Toast.LENGTH_SHORT).show();
+                    finish();
+                } else {
+
+                }
+            }
+        };
+
+    }
+
+    public void loginUser(String email, String password){
+        auth.signInWithEmailAndPassword(email,password).addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
+            @Override
+            public void onComplete(@NonNull Task<AuthResult> task) {
+                if (task.isSuccessful()){
+                    // 로그인 성공
+                    Toast.makeText(MainActivity.this,"로그인 성공",Toast.LENGTH_SHORT).show();
+                    auth.addAuthStateListener(firebaseAuthListener);
+                } else {
+                    // 로그인 실패
+                    Toast.makeText(MainActivity.this,"로그인 실패",Toast.LENGTH_SHORT).show();
                 }
             }
         });
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (firebaseAuthListener != null) {
+            auth.removeAuthStateListener(firebaseAuthListener);
+        }
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) { // 구글 로그인 인증을 요청 했을 때 결과 값을 되돌려 받는 곳
